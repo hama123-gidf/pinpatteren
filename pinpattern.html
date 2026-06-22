@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pattern Lock</title>
+
+<style>
+body{
+    margin:0;
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:linear-gradient(135deg,#f2f2f2,#cfcfcf);
+    font-family:Arial;
+    overflow:hidden;
+}
+
+.container{
+    text-align:center;
+}
+
+h2{
+    color:#333;
+    margin-bottom:10px;
+}
+
+#lock{
+    width:320px;
+    height:320px;
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:35px;
+    position:relative;
+    padding:20px;
+}
+
+canvas{
+    position:absolute;
+    inset:0;
+    z-index:1;
+    pointer-events:none;
+}
+
+.dot{
+    width:70px;
+    height:70px;
+    border-radius:50%;
+    background:white;
+    border:3px solid #444;
+    z-index:2;
+    justify-self:center;
+    align-self:center;
+    transition:0.15s;
+    box-shadow:0 10px 20px rgba(0,0,0,0.08);
+}
+
+.dot.active{
+    background:black;
+    border-color:black;
+    transform:scale(1.15);
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+    <h2>...</h2>
+
+    <div id="lock">
+        <canvas id="canvas"></canvas>
+
+        <div class="dot" data-id="1"></div>
+        <div class="dot" data-id="2"></div>
+        <div class="dot" data-id="3"></div>
+
+        <div class="dot" data-id="4"></div>
+        <div class="dot" data-id="5"></div>
+        <div class="dot" data-id="6"></div>
+
+        <div class="dot" data-id="7"></div>
+        <div class="dot" data-id="8"></div>
+        <div class="dot" data-id="9"></div>
+    </div>
+</div>
+
+<script>
+const lock = document.getElementById("lock");
+const dots = document.querySelectorAll(".dot");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+canvas.width = lock.offsetWidth;
+canvas.height = lock.offsetHeight;
+
+let pattern = [];
+let isDrawing = false;
+
+function playSound(freq){
+    const audio = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audio.createOscillator();
+    const gain = audio.createGain();
+
+    osc.connect(gain);
+    gain.connect(audio.destination);
+
+    osc.frequency.value = freq;
+    osc.type = "sine";
+
+    osc.start();
+
+    gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        audio.currentTime + 0.08
+    );
+
+    osc.stop(audio.currentTime + 0.1);
+}
+
+function getCenter(dot){
+    const r1 = lock.getBoundingClientRect();
+    const r2 = dot.getBoundingClientRect();
+
+    return {
+        x: r2.left - r1.left + r2.width/2,
+        y: r2.top - r1.top + r2.height/2
+    };
+}
+
+function drawLines(mouseX, mouseY){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    if(pattern.length === 0) return;
+
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 10;
+    ctx.lineCap = "round";
+
+    ctx.beginPath();
+
+    pattern.forEach((id,i)=>{
+        const dot = document.querySelector(`[data-id="${id}"]`);
+        const p = getCenter(dot);
+
+        if(i === 0){
+            ctx.moveTo(p.x, p.y);
+        } else {
+            ctx.lineTo(p.x, p.y);
+        }
+    });
+
+    // live finger line
+    if(mouseX !== null){
+        ctx.lineTo(mouseX, mouseY);
+    }
+
+    ctx.stroke();
+}
+
+function addDot(dot){
+    const id = dot.dataset.id;
+
+    if(pattern.includes(id)) return;
+
+    pattern.push(id);
+    dot.classList.add("active");
+
+    playSound(600);
+}
+
+function reset(){
+    pattern = [];
+    dots.forEach(d=>d.classList.remove("active"));
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+lock.addEventListener("mousedown", e=>{
+    isDrawing = true;
+});
+
+lock.addEventListener("mouseup", ()=>{
+    isDrawing = false;
+    setTimeout(reset, 600);
+});
+
+lock.addEventListener("mousemove", e=>{
+    const rect = lock.getBoundingClientRect();
+
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    drawLines(x, y);
+
+    if(!isDrawing) return;
+
+    dots.forEach(dot=>{
+        const r = dot.getBoundingClientRect();
+
+        const cx = r.left - rect.left + r.width/2;
+        const cy = r.top - rect.top + r.height/2;
+
+        const dist = Math.hypot(cx - x, cy - y);
+
+        if(dist < 35){
+            addDot(dot);
+        }
+    });
+});
+
+// mobile touch support
+lock.addEventListener("touchstart", ()=> isDrawing = true);
+lock.addEventListener("touchend", ()=>{
+    isDrawing = false;
+    setTimeout(reset, 600);
+});
+
+lock.addEventListener("touchmove", e=>{
+    const rect = lock.getBoundingClientRect();
+
+    const t = e.touches[0];
+    const x = t.clientX - rect.left;
+    const y = t.clientY - rect.top;
+
+    drawLines(x, y);
+
+    dots.forEach(dot=>{
+        const r = dot.getBoundingClientRect();
+
+        const cx = r.left - rect.left + r.width/2;
+        const cy = r.top - rect.top + r.height/2;
+
+        const dist = Math.hypot(cx - x, cy - y);
+
+        if(dist < 35){
+            addDot(dot);
+        }
+    });
+});
+</script>
+
+</body>
+</html>
